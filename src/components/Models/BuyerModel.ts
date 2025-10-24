@@ -58,4 +58,17 @@ export class BuyerModel {
     if (!this.address) errors.address = 'Укажите адрес';
     return errors;
   }
+
+  public validateStep1(): {
+    payment?: string;
+    address?: string;
+  } {
+    const errors: {
+      payment?: string;
+      address?: string;
+    } = {};
+    if (!this.payment) errors.payment = 'Не выбран вид оплаты';
+    if (!this.address) errors.address = 'Укажите адрес';
+    return errors;
+  }
 }

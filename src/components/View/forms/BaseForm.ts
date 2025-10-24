@@ -27,6 +27,7 @@ export abstract class BaseForm<
     this.errorsEl = ensureElement<HTMLElement>('.form__errors', this.container);
 
     this.formEl.addEventListener('input', () => this.onChange());
+    this.formEl.addEventListener('change', () => this.onChange());
     this.formEl.addEventListener('submit', (e) => {
       e.preventDefault();
       this.onSubmit();

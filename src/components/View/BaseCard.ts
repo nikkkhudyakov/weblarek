@@ -61,7 +61,13 @@ export abstract class BaseCard<T extends CardViewModel> extends Component<T> {
     if (!this.imageEl) return;
     const src = typeof value === 'string' ? value : value.src;
     const alt = typeof value === 'string' ? '' : value.alt ?? '';
-    this.setImage(this.imageEl, `${CDN_URL}/${src}`, alt);
+
+    // Преобразуем .svg в .png для корректного отображения
+    const imageSrc = src.endsWith('.svg')
+      ? `${CDN_URL}/${src.slice(0, -4)}.png`
+      : `${CDN_URL}/${src}`;
+
+    this.setImage(this.imageEl, imageSrc, alt);
   }
 
   set category(value: string) {

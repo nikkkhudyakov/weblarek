@@ -1,7 +1,6 @@
 import { Component } from '../base/Component';
 import { IEvents } from '../base/Events';
 import { CardViewModel } from './BaseCard';
-import { CatalogCard } from './CatalogCard';
 
 export class CatalogView extends Component<CardViewModel[]> {
   private listEl: HTMLElement;
@@ -13,11 +12,7 @@ export class CatalogView extends Component<CardViewModel[]> {
     this.listEl = container;
   }
 
-  set items(value: CardViewModel[]) {
-    const cards = value.map((vm) => {
-      const card = new CatalogCard(this.events);
-      return card.render(vm);
-    });
-    this.listEl.replaceChildren(...cards);
+  set items(value: HTMLElement[]) {
+    this.listEl.replaceChildren(...value);
   }
 }

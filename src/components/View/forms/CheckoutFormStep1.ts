@@ -43,6 +43,9 @@ export class CheckoutFormStep1 extends BaseForm<Step1Data, Step1Errors> {
     this.btnCash.addEventListener('click', () =>
       toggle(this.btnCash, this.btnOnline)
     );
+
+    // Добавляем обработчик для поля адреса
+    this.addressInput.addEventListener('input', () => this.onChange());
   }
 
   protected collectData(): Step1Data {

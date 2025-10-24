@@ -4,10 +4,18 @@ import { BuyerModel } from './components/Models/BuyerModel';
 import { CartModel } from './components/Models/CartModel';
 import { CatalogModel } from './components/Models/CatalogModel';
 import { ShopApi } from './components/Models/ShopApi';
+import { CartItemCard } from './components/View/CartItemCard';
 import { CartView } from './components/View/CartView';
+import { CatalogCard } from './components/View/CatalogCard';
 import { CatalogView } from './components/View/CatalogView';
-import { CheckoutFormStep1 } from './components/View/forms/CheckoutFormStep1';
-import { CheckoutFormStep2 } from './components/View/forms/CheckoutFormStep2';
+import {
+  CheckoutFormStep1,
+  Step1Data,
+} from './components/View/forms/CheckoutFormStep1';
+import {
+  CheckoutFormStep2,
+  Step2Data,
+} from './components/View/forms/CheckoutFormStep2';
 import { HeaderView } from './components/View/HeaderView';
 import { ModalView } from './components/View/ModalView';
 import { OrderSuccessView } from './components/View/OrderSuccessView';
@@ -22,6 +30,10 @@ const catalog = new CatalogModel(undefined, events);
 const cart = new CartModel(undefined, events);
 const buyer = new BuyerModel(undefined, events);
 
+// API instances
+const api = new Api(API_URL);
+const shopApi = new ShopApi(api);
+
 // Views
 const gallery = document.querySelector('main.gallery') as HTMLElement;
 const headerEl = document.querySelector('.header') as HTMLElement;
@@ -30,58 +42,47 @@ const headerView = new HeaderView(headerEl, events);
 const catalogView = new CatalogView(gallery, events);
 const modalView = new ModalView(modalEl, events);
 
+// Form instances
 let currentStep1: CheckoutFormStep1 | null = null;
 let currentStep2: CheckoutFormStep2 | null = null;
 
-// Делегирование клика в модалке на кнопку оформления (на случай проблем с вложенными обработчиками)
-modalEl.addEventListener('click', (e) => {
-  const target = e.target as HTMLElement | null;
-  if (!target) return;
-  const checkoutBtn = target.closest(
-    '.basket__button'
-  ) as HTMLButtonElement | null;
-  if (checkoutBtn && !checkoutBtn.disabled) {
-    events.emit('cart:checkout');
-  }
-});
+// State tracking
+let isCartOpen = false;
 
 // Render helpers
 const renderCatalog = () => {
-  const items = catalog.getProducts().map((p) => ({
-    id: p.id,
-    title: p.title,
-    image: p.image,
-    category: p.category,
-    price: p.price,
-    inCart: cart.has(p.id),
-  }));
+  const items = catalog.getProducts().map((p) => {
+    const card = new CatalogCard(events);
+    return card.render({
+      id: p.id,
+      title: p.title,
+      image: p.image,
+      category: p.category,
+      price: p.price,
+      inCart: cart.has(p.id),
+    });
+  });
   catalogView.items = items;
 };
 
 const renderCartModal = () => {
-  const list = cart.getItems().map((p) => ({
-    id: p.id,
-    title: p.title,
-    price: p.price,
-    image: p.image,
-    category: p.category,
-  }));
+  const list = cart.getItems().map((p, idx) => {
+    const card = new CartItemCard(events);
+    return card.render({
+      id: p.id,
+      title: p.title,
+      price: p.price,
+      image: p.image,
+      category: p.category,
+      index: idx + 1,
+    });
+  });
   const cartView = new CartView(events);
   cartView.items = list;
   cartView.total = cart.getTotal();
   cartView.canCheckout = cart.getCount() > 0;
   modalView.open(cartView.render());
-  // Fallback: если по каким-то причинам событие из CartView не дошло,
-  // навесим делегированный обработчик на кнопку оформления
-  const checkoutBtn = modalEl.querySelector(
-    '.basket__button'
-  ) as HTMLButtonElement | null;
-  if (checkoutBtn) {
-    checkoutBtn.onclick = () => {
-      if (checkoutBtn.disabled) return;
-      events.emit('cart:checkout');
-    };
-  }
+  isCartOpen = true;
 };
 
 // Model events
@@ -106,7 +107,7 @@ events.on('cart:changed', () => {
   headerView.count = cart.getCount();
   renderCatalog();
   // Если открыта корзина, перерисуем её содержимое
-  if (modalEl.querySelector('.basket')) {
+  if (isCartOpen) {
     renderCartModal();
   }
 });
@@ -144,50 +145,39 @@ events.on('cart:checkout', () => {
   modalView.open(currentStep1.render());
 });
 
-events.on<
-  | import('./components/View/forms/CheckoutFormStep1').Step1Data
-  | import('./components/View/forms/CheckoutFormStep2').Step2Data
->('form:change', (data) => {
+events.on<Step1Data | Step2Data>('form:change', (data) => {
   const isStep1 = 'payment' in data || 'address' in data;
   const isStep2 = 'email' in data || 'phone' in data;
 
   if (isStep1 && currentStep1) {
-    const d =
-      data as import('./components/View/forms/CheckoutFormStep1').Step1Data;
-    const paymentValid = !!d.payment;
-    const addressValid = !!(d.address && d.address.trim());
-    const valid = paymentValid && addressValid;
+    const d = data as Step1Data;
     buyer.set({
       payment: (d.payment ?? undefined) as TPayment,
       address: d.address || '',
     });
-    currentStep1.valid = valid;
+    const errors = buyer.validateStep1();
+    currentStep1.valid = Object.keys(errors).length === 0;
     currentStep1.errors = {
-      payment: paymentValid ? undefined : 'Не выбран вид оплаты',
-      address: addressValid ? undefined : 'Укажите адрес',
+      payment: errors.payment,
+      address: errors.address,
     };
   } else if (isStep2 && currentStep2) {
-    const d =
-      data as import('./components/View/forms/CheckoutFormStep2').Step2Data;
-    const email = d.email || '';
-    const phone = d.phone || '';
-    const emailValid = !!email.trim();
-    const phoneValid = !!phone.trim();
-    const valid = emailValid && phoneValid;
-    buyer.set({ email, phone });
-    currentStep2.valid = valid;
+    const d = data as Step2Data;
+    buyer.set({
+      email: d.email || '',
+      phone: d.phone || '',
+    });
+    const errors = buyer.validate();
+    currentStep2.valid = Object.keys(errors).length === 0;
     currentStep2.errors = {
-      email: emailValid ? undefined : 'Укажите email',
-      phone: phoneValid ? undefined : 'Укажите телефон',
+      email: errors.email,
+      phone: errors.phone,
     };
   }
 });
 
 events.on('form:submit', () => {
-  const isStep1 = !!modalEl.querySelector('form[name="order"]');
-  const isStep2 = !!modalEl.querySelector('form[name="contacts"]');
-
-  if (isStep1) {
+  if (currentStep1) {
     currentStep2 = new CheckoutFormStep2(events);
     currentStep1 = null;
     currentStep2.valid = false;
@@ -196,9 +186,7 @@ events.on('form:submit', () => {
     return;
   }
 
-  if (isStep2) {
-    const api = new Api(API_URL);
-    const shopApi = new ShopApi(api);
+  if (currentStep2) {
     const items = cart.getItems().map((p) => p.id);
     const total = cart.getTotal();
     shopApi
@@ -225,12 +213,10 @@ events.on('form:submit', () => {
 
 events.on('order:success-close', () => modalView.close());
 events.on('modal:close', () => {
-  /* no-op */
+  isCartOpen = false;
 });
 
 // Получение каталога товаров с сервера и сохранение в модель каталога
-const api = new Api(API_URL);
-const shopApi = new ShopApi(api);
 shopApi
   .getProducts()
   .then((items) => {

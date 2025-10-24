@@ -1,7 +1,7 @@
 import { cloneTemplate, ensureElement } from '../../utils/utils';
 import { Component } from '../base/Component';
 import { IEvents } from '../base/Events';
-import { CartItemCard, CartItemViewModel } from './CartItemCard';
+import { CartItemViewModel } from './CartItemCard';
 
 export class CartView extends Component<{
   items: CartItemViewModel[];
@@ -30,15 +30,11 @@ export class CartView extends Component<{
     );
   }
 
-  set items(value: CartItemViewModel[]) {
+  set items(value: HTMLElement[]) {
     if (value.length === 0) {
       this.listEl.replaceChildren(document.createTextNode('Корзина пуста'));
     } else {
-      const nodes = value.map((vm, idx) => {
-        const card = new CartItemCard(this.events);
-        return card.render({ ...vm, index: idx + 1 });
-      });
-      this.listEl.replaceChildren(...nodes);
+      this.listEl.replaceChildren(...value);
     }
   }
 
